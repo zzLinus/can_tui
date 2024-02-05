@@ -23,10 +23,11 @@ import (
 const (
 	padding   = 2
 	maxWidth  = 80
-	MAX_SPEED = 0xff
+	MAX_SPEED = 0x08ff
 )
 
 var (
+	debug_s  string
 	motor_id [10]int
 	can_pkg  [8]uint8
 )
@@ -60,11 +61,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.Type == tea.KeyPgUp {
-			cmd := m.progress.IncrPercent(0.25)
-			return m, tea.Batch(cmd, cansend(5, (int)(MAX_SPEED*m.progress.Percent())))
+			cmd := m.progress.IncrPercent(0.05)
+			return m, tea.Batch(cmd)
 		} else if msg.Type == tea.KeyPgDown {
-			cmd := m.progress.DecrPercent(0.25)
-			return m, tea.Batch(cmd, cansend(5, (int)(MAX_SPEED*m.progress.Percent())))
+			cmd := m.progress.DecrPercent(0.05)
+			return m, tea.Batch(cmd)
 
 		} else {
 			return m, tea.Quit
@@ -85,7 +86,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Note that you can also use progress.Model.SetPercent to set the
 		// percentage value explicitly, too.
 		//cmd := m.progress.IncrPercent(0.25)
-		return m, tea.Batch(tickCmd())
+		return m, tea.Batch(tickCmd(), cansend(5, (int)(MAX_SPEED*m.progress.Percent())))
 
 	// FrameMsg is sent when the progress bar wants to animate itself
 	case progress.FrameMsg:
@@ -106,24 +107,28 @@ func (m model) View() string {
 		IDs = append(IDs, strconv.Itoa(i))
 	}
 	return "\n" +
-		pad + "min" + pad2 + "max\n\n" +
+		pad + "min" + pad2 + "max\n\n" + pad + debug_s +
 		pad + m.progress.View() + "\n\n" +
 		pad + helpStyle("Press any key to quit")
 }
 
 func cansend(num int, speed int) tea.Cmd {
-	fmt.Println("set speed : ")
-	fmt.Println(speed)
+	debug_s = fmt.Sprintf("set speed : %d\n", speed)
+
 	for i := 0; i < 4; i++ {
 		if num&(1<<i) != 0 {
-			can_pkg[i] = (uint8)(speed >> 8)
-			can_pkg[i+1] = (uint8)(speed)
+			can_pkg[2*i] = (uint8)(speed >> 8)
+			can_pkg[2*i+1] = (uint8)(speed)
 		}
 	}
 
+	debug_s += fmt.Sprintf("  can_pkg : %02x %02x %02x %02x %02x %02x %02x %02x\n", can_pkg[0], can_pkg[1], can_pkg[2], can_pkg[3], can_pkg[4], can_pkg[5], can_pkg[6], can_pkg[7])
+
+	can_s := fmt.Sprintf("%02x%02x%02x%02x%02x%02x%02x%02x", can_pkg[0], can_pkg[1], can_pkg[2], can_pkg[3], can_pkg[4], can_pkg[5], can_pkg[6], can_pkg[7])
+
 	editor := "cansend"
 	// "01BB117001BBEE90"
-	cmd := exec.Command(editor, "can0", "200#01BB117001BBEE90")
+	cmd := exec.Command(editor, "can0", "200#"+can_s)
 	stdout, err := cmd.Output()
 	if err != nil {
 		fmt.Println(err.Error())
@@ -134,7 +139,7 @@ func cansend(num int, speed int) tea.Cmd {
 }
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Microsecond*500, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }

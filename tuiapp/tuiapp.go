@@ -27,7 +27,7 @@ const (
 	timerView sessionState = iota
 	spinnerView
 	maxWidth  = 80
-	MAX_SPEED = 0x0aff
+	MAX_SPEED = 0x0fff
 )
 
 var (
@@ -109,7 +109,7 @@ func New() *tea.Program {
 
 func (m model) Init() tea.Cmd {
 	var err error
-	dump_cmd := exec.Command("candump", "can0")
+	dump_cmd := exec.Command("candump", "can1")
 	io_reader, err = dump_cmd.StdoutPipe()
 	if err != nil {
 		panic(err)
@@ -244,10 +244,8 @@ func cansend(num int, speed int) tea.Cmd {
 	debug_s = fmt.Sprintf("set speed : %d\n", speed)
 
 	for i := 0; i < 4; i++ {
-		if num&(1<<i) != 0 {
 			can_pkg[2*i] = (uint8)(speed >> 8)
 			can_pkg[2*i+1] = (uint8)(speed)
-		}
 	}
 
 	debug_s += fmt.Sprintf("  can_pkg : %02x %02x %02x %02x %02x %02x %02x %02x\n\n",
@@ -257,7 +255,7 @@ func cansend(num int, speed int) tea.Cmd {
 		can_pkg[0], can_pkg[1], can_pkg[2], can_pkg[3],
 		can_pkg[4], can_pkg[5], can_pkg[6], can_pkg[7])
 
-	cmd := exec.Command("cansend", "can0", "200#"+can_s)
+	cmd := exec.Command("cansend", "can1", "200#"+can_s)
 	_, err := cmd.Output()
 	if err != nil {
 		fmt.Println(err.Error())
